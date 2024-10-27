@@ -1,11 +1,15 @@
-package cache_singleflight
+package main
 
 import (
+	"fmt"
+	"golang.org/x/sync/singleflight"
 	"log"
 	"math/rand"
 	"sync"
 	"time"
 )
+
+var group singleflight.Group
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
@@ -46,10 +50,17 @@ func (c *Cache) Get(key int) int {
 		return v
 	}
 
-	// もしなかったらDBにアクセス
-	v = GetFromDB(key)
-	// キャッシュに保存
-	c.Set(key, v)
+	vv, err, _ := group.Do(fmt.Sprintf("cacheGet_%d", key), func() (interface{}, error) {
+		value := GetFromDB(key)
+		c.Set(key, value)
+		return value, nil
+	})
+
+	if err != nil {
+		panic(err)
+	}
+
+	return vv.(int)
 
 	return v
 }
